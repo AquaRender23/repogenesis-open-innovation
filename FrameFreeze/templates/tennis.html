@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Table Tennis - Hand Gesture + Keyboard</title>
+
+  <!-- Hand-tracking libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/hand-pose-detection"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands"></script>
+
+  <style>
+    body {
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: Arial, Helvetica, sans-serif;
+      background: radial-gradient(circle at top left, #ffc9df, #c7deff);
+      color: #f9fbff;
+    }
+    #gameWrapper {
+      background: #111827;
+      padding: 16px 20px 20px;
+      border-radius: 18px;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.45);
+      min-width: 860px;
+      position: relative;
+    }
+    #topBar { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+    #title { font-size: 22px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+    #scoreBoard { font-size: 16px; font-weight: 500; }
+    #scoreBoard span { font-weight: 600; }
+    #hint { margin-top: 8px; font-size: 12px; color: #d8e0ff; opacity: .85; line-height: 1.5; }
+    canvas { display: block; border-radius: 14px; background: linear-gradient(180deg, #20415f, #121926); }
+    #webcamWrapper {
+      position: absolute;
+      top: 16px; right: 20px;
+      width: 160px; height: 120px;
+      border-radius: 12px; overflow: hidden;
+      border: 2px solid rgba(255,255,255,0.35);
+      box-shadow: 0 8px 18px rgba(0,0,0,0.4);
+      background: #000; font-size: 11px;
+    }
+    #webcam { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+    #camLabel {
+      position: absolute; bottom: 0; left: 0; right: 0; padding: 2px 6px;
+      background: linear-gradient(to top, rgba(0,0,0,0.7), transparent); color: #e5edff;
+      text-align: center; font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <div id="gameWrapper">
+    <div id="topBar">
+      <!-- <div id="title"></div> -->
+      <div id="scoreBoard">
+        You: <span id="playerScore">0</span> &nbsp; | &nbsp;
+        Bot: <span id="botScore">0</span>
+      </div>
+    </div>
+    <canvas id="gameCanvas" width="820" height="480"></canvas>
+    <div id="webcamWrapper">
+      <video id="webcam" autoplay playsinline muted></video>
+      <div id="camLabel">Hand Motion Sensor</div>
+    </div>
+    <div id="hint">
+      <strong>Play controls</strong><br>
+      <b>With hand:</b> move hand left/right to move racket • quick up = fast shot • quick down = soft shot<br>
+      <b>Keyboard (backup):</b> ← / → move • ↑ fast shot • ↓ soft shot
+    </div>
+  </div>
+
+  <script>
+    // --- GAME STATE ---
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const playerScoreEl = document.getElementById("playerScore");
+    const botScoreEl = document.getElementById("botScore");
+    const table = { x: 60, y: 70, width: canvas.width - 120, height: canvas.height - 160 };
+    const net = { y: table.y + table.height / 2 };
+    const racketRadius = 26;
+    const player = { x: table.x + table.width / 2, y: table.y + table.height - 40, vx: 0, maxSpeed: 8 };
+    const bot = { x: table.x + table.width / 2, y: table.y + 40, vx: 0, maxSpeed: 6 };
+    const ball = { x: table.x + table.width / 2, y: table.y + table.height / 2, vx: 4, vy: 5, radius: 10, speedLimit: 13 };
+    let playerScore = 0, botScore = 0, isRunning = false;
+
+    // --- KEYBOARD + GESTURE INPUT STATE ---
+    const keyState = { ArrowLeft: false, ArrowRight: false, ArrowUp: false, ArrowDown: false };
+    const gestureState = { left: false, right: false, fast: false, soft: false };
+
+    window.setGestureInput = function ({ left = false, right = false, fast = false, soft = false } = {}) {
+      gestureState.left = left; gestureState.right = right; gestureState.fast = fast; gestureState.soft = soft;
+      if (!isRunning && (left || right || fast || soft)) isRunning = true;
+    };
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key in keyState) { keyState[e.key] = true; if (!isRunning) isRunning = true; }
+    });
+    document.addEventListener("keyup", (e) => { if (e.key in keyState) keyState[e.key] = false; });
+
+    function combinedInput() {
+      const left = keyState.ArrowLeft  || gestureState.left;
+      const right = keyState.ArrowRight || gestureState.right;
+      const fast = keyState.ArrowUp    || gestureState.fast;
+      const soft = keyState.ArrowDown  || gestureState.soft;
+      return { left, right, fast, soft };
+    }
+
+    // --- GAME LOGIC ---
+    function resetBall(scoredByPlayer) {
+      ball.x = table.x + table.width / 2;
+      ball.y = table.y + table.height / 2;
+      const dir = scoredByPlayer ? -1 : 1;
+      ball.vx = (Math.random() > 0.5 ? 4 : -4);
+      ball.vy = dir * 5;
+      isRunning = false;
+    }
+
+    function updatePlayer() {
+      const input = combinedInput();
+      player.vx = 0;
+      if (input.left) player.vx = -player.maxSpeed;
+      if (input.right) player.vx = player.maxSpeed;
+      player.x += player.vx;
+      const minX = table.x + racketRadius + 8,
+            maxX = table.x + table.width - racketRadius - 8;
+      if (player.x < minX) player.x = minX;
+      if (player.x > maxX) player.x = maxX;
+    }
+
+    function updateBot() {
+      const targetX = ball.x;
+      const dx = targetX - bot.x, maxStep = bot.maxSpeed;
+      if (Math.abs(dx) > 4) bot.x += Math.sign(dx) * Math.min(Math.abs(dx), maxStep);
+      const minX = table.x + racketRadius + 8,
+            maxX = table.x + table.width - racketRadius - 8;
+      if (bot.x < minX) bot.x = minX;
+      if (bot.x > maxX) bot.x = maxX;
+    }
+
+    function updateBall() {
+      ball.x += ball.vx;
+      ball.y += ball.vy;
+      const leftWall = table.x + ball.radius,
+            rightWall = table.x + table.width - ball.radius;
+
+      if (ball.x <= leftWall || ball.x >= rightWall) {
+        ball.vx *= -1;
+        ball.x = Math.max(leftWall, Math.min(rightWall, ball.x));
+      }
+
+      const topLimit = table.y + ball.radius,
+            bottomLimit = table.y + table.height - ball.radius;
+      if (ball.y <= topLimit) {
+        playerScore++;
+        playerScoreEl.textContent = playerScore;
+        resetBall(true); return;
+      }
+      if (ball.y >= bottomLimit) {
+        botScore++;
+        botScoreEl.textContent = botScore;
+        resetBall(false); return;
+      }
+      handleRacketHit(player, true);
+      handleRacketHit(bot, false);
+    }
+
+    function handleRacketHit(racket, isPlayer) {
+      const dy = ball.y - racket.y,
+            dx = ball.x - racket.x,
+            dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist <= racketRadius + ball.radius) {
+        const nx = dx / dist, ny = dy / dist;
+        ball.x = racket.x + (racketRadius + ball.radius + 1) * nx;
+        ball.y = racket.y + (racketRadius + ball.radius + 1) * ny;
+        const speed = Math.min(Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy) + 0.4, ball.speedLimit);
+        ball.vx = speed * nx; ball.vy = speed * ny;
+        if (isPlayer) {
+          const input = combinedInput();
+          if (input.fast) { ball.vy -= 2.2; }
+          if (input.soft) { ball.vy *= 0.55; ball.vx *= 0.55; }
+          if (ball.vy > -2) ball.vy = -Math.abs(ball.vy) - 2;
+        } else {
+          if (ball.vy < 2) ball.vy = Math.abs(ball.vy) + 2;
+        }
+      }
+    }
+
+    function update() { if (!isRunning) return; updatePlayer(); updateBot(); updateBall(); }
+
+    // --- DRAWING ---
+    function drawTable() {
+      ctx.fillStyle = "#0b8f57"; ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(table.x, table.y, table.width, table.height, 14);
+      else ctx.rect(table.x, table.y, table.width, table.height); ctx.fill();
+      ctx.strokeStyle = "#fdfdfd"; ctx.lineWidth = 3;
+      ctx.strokeRect(table.x + 6, table.y + 6, table.width - 12, table.height - 12);
+      ctx.beginPath(); ctx.moveTo(table.x + 10, net.y); ctx.lineTo(table.x + table.width - 10, net.y);
+      ctx.strokeStyle = "#ffffffaa"; ctx.lineWidth = 2; ctx.setLineDash([10, 8]); ctx.stroke(); ctx.setLineDash([]);
+      const postHeight = 40, postWidth = 6, postYTop = net.y - postHeight / 2;
+      ctx.fillStyle = "#1e293b";
+      ctx.fillRect(table.x + 18, postYTop, postWidth, postHeight);
+      ctx.fillRect(table.x + table.width - 24, postYTop, postWidth, postHeight);
+      ctx.strokeStyle = "#f9fafb"; ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      for (let x = table.x + 30; x <= table.x + table.width - 30; x += 10) { ctx.moveTo(x, net.y - 14); ctx.lineTo(x, net.y + 14); }
+      for (let y = net.y - 14; y <= net.y + 14; y += 6) { ctx.moveTo(table.x + 30, y); ctx.lineTo(table.x + table.width - 30, y); }
+      ctx.stroke();
+    }
+
+    function drawRacket(r, isPlayer) {
+      ctx.save(); ctx.translate(r.x, r.y);
+      ctx.rotate(isPlayer ? Math.PI * 0.1 : -Math.PI * 0.1);
+      ctx.fillStyle = "#b87333"; ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(-8, isPlayer ? 16 : -54, 16, 40, 6); else ctx.rect(-8, isPlayer ? 16 : -54, 16, 40); ctx.fill();
+      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.translate(r.x, r.y); ctx.beginPath();
+      ctx.arc(0, 0, racketRadius, 0, Math.PI * 2);
+      ctx.fillStyle = isPlayer ? "#e11d48" : "#111827"; ctx.shadowColor = "rgba(0,0,0,0.45)";
+      ctx.shadowBlur = 10; ctx.fill(); ctx.restore();
+    }
+
+    function drawBall() {
+      ctx.save(); ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+      ctx.fillStyle = "#fefefe"; ctx.shadowColor = "rgba(0,0,0,0.35)"; ctx.shadowBlur = 6; ctx.fill(); ctx.restore();
+    }
+
+    function drawBackground() { ctx.fillStyle = "#020617"; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+
+    function render() { drawBackground(); drawTable(); drawRacket(player, true); drawRacket(bot, false); drawBall(); }
+
+    // --- MAIN GAME LOOP ---
+    function loop() { update(); render(); requestAnimationFrame(loop); }
+
+    // --- HAND-TRACKING ---
+    const videoEl = document.getElementById("webcam");
+    let handDetector = null, lastY = null;
+
+    async function initHandTracking() {
+      if (window.tf && tf.setBackend) { await tf.setBackend("webgl"); await tf.ready(); }
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } });
+      videoEl.srcObject = stream; await videoEl.play();
+      const model = handPoseDetection.SupportedModels.MediaPipeHands;
+      const detectorConfig = {
+        runtime: "mediapipe", modelType: "lite",
+        solutionPath: "https://cdn.jsdelivr.net/npm/@mediapipe/hands"
+      };
+      handDetector = await handPoseDetection.createDetector(model, detectorConfig);
+      requestAnimationFrame(handLoop);
+    }
+
+    async function handLoop() {
+      if (handDetector && videoEl.readyState === 4) {
+        try {
+          const hands = await handDetector.estimateHands(videoEl, { flipHorizontal: true });
+          if (hands.length > 0) {
+            const hand = hands[0];
+            const keypoints = hand.keypoints || [];
+            const wrist = keypoints.find(k => k.name === "wrist") || keypoints[0];
+            if (wrist) {
+              const xNorm = wrist.x / videoEl.videoWidth;
+              const yNorm = wrist.y / videoEl.videoHeight;
+              const left  = xNorm < 0.4;
+              const right = xNorm > 0.6;
+              let fast = false, soft = false;
+              if (lastY !== null) {
+                const dy = yNorm - lastY;
+                if (dy < -0.045) fast = true;
+                else if (dy > 0.045) soft = true;
+              }
+              lastY = yNorm;
+              setGestureInput({ left, right, fast, soft });
+            }
+          } else {
+            setGestureInput({ left: false, right: false, fast: false, soft: false });
+            lastY = null;
+          }
+        } catch (err) { console.error("Hand tracking error:", err); }
+      }
+      requestAnimationFrame(handLoop);
+    }
+
+    // --- RUN EVERYTHING ---
+    loop();
+    initHandTracking().catch(err => { console.error("Failed to init hand tracking", err); });
+  </script>
+</body>
+</html>

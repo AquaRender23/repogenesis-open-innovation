@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>Gesture Sudoku with 2 Hands</title>
+<style>
+  body {
+    background: #2b0033;
+    font-family: Arial, sans-serif;
+    color: white;
+    text-align: center;
+    overflow: hidden;
+  }
+  #board {
+    width: 450px; height: 450px;
+    display: grid; grid-template-columns: repeat(9,1fr);
+    margin: 20px auto; border: 4px solid #d46bff;
+    box-shadow: 0 0 20px #b300ff;
+    position: relative;
+  }
+  .cell {
+    border: 1px solid #c76dff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; color: white;
+  }
+  .thick-right { border-right: 3px solid #e79aff !important; }
+  .thick-bottom { border-bottom: 3px solid #e79aff !important; }
+  .selected { background: #ffb3ff; color: black; }
+  .prefilled { color: #ffccff; font-weight: bold; }
+  #cursor {
+    position: absolute; width: 20px; height: 20px; border: 3px solid #fff;
+    border-radius: 50%; pointer-events: none; z-index: 9999;
+    transition: left 0.1s, top 0.1s;
+  }
+  #cameraPreview {
+    position: fixed; bottom: 20px; right: 20px;
+    width: 320px; height: 240px; border: 3px solid #e79aff;
+    border-radius: 10px; box-shadow: 0 0 15px #b300ff;
+    background: black;
+  }
+  #gestureStatus {
+    position: absolute; top: 10px; width: 100%; text-align: center; font-size: 1rem;
+    font-weight: 600; color: #55aaff; z-index: 1000;
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+</head>
+<body>
+
+<h1>Sudoku (2 Hands, Gesture Controlled)</h1>
+
+<div id="board"></div>
+
+<div id="gestureStatus">(Gesture info)</div>
+<video id="cameraPreview" autoplay muted playsinline></video>
+
+<div id="cursor"></div>
+
+<script>
+const boardEl = document.getElementById("board");
+const cursor = document.getElementById("cursor");
+const gestureStatus = document.getElementById("gestureStatus");
+const previewVideo = document.getElementById("cameraPreview");
+
+const puzzle = [
+  "530070000", "600195000", "098000060",
+  "800060003", "400803001", "700020006",
+  "060000280", "000419005", "000080079"
+];
+
+let cells = [];
+let selectedCell = null;
+
+function createBoard() {
+  boardEl.innerHTML = "";
+  cells = [];
+  for(let r = 0; r < 9; r++) {
+    for(let c = 0; c < 9; c++) {
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      if(c === 2 || c === 5) cell.classList.add("thick-right");
+      if(r === 2 || r === 5) cell.classList.add("thick-bottom");
+      const val = puzzle[r][c];
+      if(val !== '0') {
+        cell.textContent = val;
+        cell.classList.add("prefilled");
+      }
+      cell.dataset.row = r;
+      cell.dataset.col = c;
+      boardEl.appendChild(cell);
+      cells.push(cell);
+    }
+  }
+}
+
+function selectCell(cell) {
+  if(cell.classList.contains("prefilled")) {
+    console.log("Cannot select prefilled cell.");
+    return;
+  }
+  if(selectedCell) selectedCell.classList.remove("selected");
+  selectedCell = cell;
+  selectedCell.classList.add("selected");
+  console.log("Selected cell at:", selectedCell.dataset.row, selectedCell.dataset.col);
+}
+
+function placeNumber(n) {
+  if(!selectedCell || selectedCell.classList.contains("prefilled")) {
+    console.log("No valid selected cell to place number.");
+    return;
+  }
+  selectedCell.textContent = n;
+  selectedCell.style.color = "#fff";
+  console.log(`Placed number ${n} at [${selectedCell.dataset.row}, ${selectedCell.dataset.col}]`);
+}
+
+function countFingers(hand) {
+  // Count fingers including thumb detection improved
+  let count = 0;
+  // Index, middle, ring, pinky fingers
+  const tips = [8, 12, 16, 20];
+  for (let tip of tips) {
+    if (hand[tip].y < hand[tip - 2].y) count++;
+  }
+  // Thumb check: tip x < ip x for right hand, reverse for left (check handedness)
+  // For simplicity assume right hand or adapt if needed.
+  if(hand[4].x < hand[3].x) count++;
+  return count;
+}
+
+function getNumberFromGesture(hand, fingerCount) {
+  const palmRot = hand[0].x - hand[9].x;
+  if(fingerCount === 5) {
+    if(Math.abs(palmRot) < 0.06) return 5;
+    if(palmRot > 0.06) return 6;
+    if(palmRot < -0.06) return 7;
+  }
+  if(fingerCount === 4) {
+    if(palmRot > 0.06) return 8;
+    if(palmRot < -0.06) return 9;
+    return 4;
+  }
+  if(fingerCount === 3) return 3;
+  if(fingerCount === 2) return 2;
+  if(fingerCount === 1) return 1;
+  return 0;
+}
+
+function getCellFromCursor(x, y) {
+  const rect = boardEl.getBoundingClientRect();
+  if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return null;
+  const cw = rect.width / 9;
+  const ch = rect.height / 9;
+  const col = Math.floor((x - rect.left) / cw);
+  const row = Math.floor((y - rect.top) / ch);
+  return cells.find(c => Number(c.dataset.row) === row && Number(c.dataset.col) === col);
+}
+
+let lastGestureNumber = 0;
+let gestureStableSince = 0;
+
+createBoard();
+
+const hands = new Hands({
+  locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+});
+hands.setOptions({
+  maxNumHands: 2,
+  modelComplexity: 1,
+  minDetectionConfidence: 0.75,
+  minTrackingConfidence: 0.75,
+});
+
+hands.onResults(results => {
+  if (!results.multiHandLandmarks) return;
+
+  const boardRect = boardEl.getBoundingClientRect();
+
+  if (results.multiHandLandmarks.length > 0) {
+    const hand0 = results.multiHandLandmarks[0];
+
+    // Map normalized landmarks to board (no flip)
+    const x_px = boardRect.left + hand0[8].x * boardRect.width;
+    const y_px = boardRect.top + hand0[8].y * boardRect.height;
+
+    cursor.style.left = (x_px - 10) + "px";
+    cursor.style.top = (y_px - 10) + "px";
+
+    const fingerCount0 = countFingers(hand0);
+    const targetCell = getCellFromCursor(x_px, y_px);
+
+    if (targetCell && fingerCount0 === 0) { // fist to select
+      selectCell(targetCell);
+    }
+  }
+
+  if (results.multiHandLandmarks.length > 1) {
+    const hand1 = results.multiHandLandmarks[1];
+    const fingerCount1 = countFingers(hand1);
+    const number1 = getNumberFromGesture(hand1, fingerCount1);
+    gestureStatus.textContent = "Detected number: " + number1;
+    console.log("Second hand fingers:", fingerCount1, "Number detected:", number1);
+
+    const now = performance.now();
+    if (number1 >= 1 && number1 <= 9) {
+      if (number1 !== lastGestureNumber) {
+        lastGestureNumber = number1;
+        gestureStableSince = now;
+      }
+      if (now - gestureStableSince > 500) { // stable for 500ms
+        placeNumber(number1);
+        gestureStableSince = now + 9999; // debounce placement
+      }
+    } else {
+      lastGestureNumber = 0;
+    }
+  }
+});
+
+const camera = new Camera(previewVideo, {
+  onFrame: async () => {
+    await hands.send({image: previewVideo});
+  },
+  width: 640,
+  height: 480,
+});
+camera.start();
+</script>
+
+</body>
+</html>

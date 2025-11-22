@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>One Line Draw – Hand Cursor</title>
+  <style>
+    body { background:#181824; font-family:sans-serif; color:#fff; margin:0; }
+    .game-container { margin:30px auto; max-width:380px; position:relative; }
+    canvas { border-radius:16px; background:#222542; display:block; margin:0 auto; }
+    video#webcam {
+      position:absolute; top:10px; right:10px;
+      width:120px; height:90px; border-radius:10px;
+      border:2px solid #957aff; box-shadow:0 0 24px #957aff88;
+      background:#111; z-index:99; object-fit:cover;
+    }
+    #gestureInfo {
+      position:absolute; top:105px; right:12px; width:120px; text-align:center;
+      font-weight:700; color:#ffd94d; font-size:1rem; text-shadow:0 0 4px #fff2;
+      z-index:98;
+    }
+    #resetBtn {
+      margin:30px auto 0 auto; display:block;
+      border-radius:24px; padding:10px 40px;
+      border:none; font-size:1rem; font-weight:700;
+      color:white; background:#957aff; cursor:pointer;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+</head>
+<body>
+  <h2 style="text-align:center; margin-top:24px;">One Line Draw – Hand Gesture Cursor</h2>
+  <div class="game-container">
+    <video id="webcam" autoplay muted playsinline></video>
+    <div id="gestureInfo"></div>
+    <canvas id="gameCanvas" width="360" height="360"></canvas>
+  </div>
+  <button id="resetBtn">Reset</button>
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    let drawing = false;
+    let strokes = [];
+    let pinchDrawing = false; // tracks pinch state for edge cases
+
+    function drawStrokes(cursorPos=null) {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.lineCap="round"; ctx.lineJoin="round";
+      ctx.strokeStyle="#ffd94d";
+      ctx.lineWidth=5;
+      for(const stroke of strokes){
+        ctx.beginPath();
+        ctx.moveTo(stroke[0].x, stroke[0].y);
+        for(let i=1;i<stroke.length;i++)
+          ctx.lineTo(stroke[i].x, stroke[i].y);
+        ctx.stroke();
+      }
+      // Draw current cursor as circle
+      if(cursorPos){
+        ctx.beginPath();
+        ctx.arc(cursorPos.x, cursorPos.y, 10, 0, Math.PI*2);
+        ctx.fillStyle = drawing ? "#ff3da3" : "#44e0ff";
+        ctx.globalAlpha = 0.85;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    document.getElementById('resetBtn').onclick = () => {
+      strokes = []; drawing=false;
+      drawStrokes();
+      document.getElementById('gestureInfo').textContent = "(Show your hand)";
+    };
+
+    const video = document.getElementById("webcam");
+    const gestureInfo = document.getElementById("gestureInfo");
+    const hands = new Hands({
+      locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.7,
+      minTrackingConfidence: 0.7
+    });
+
+    hands.onResults(results => {
+      let cursor = null;
+      if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+        drawStrokes();
+        gestureInfo.textContent = "(Show your hand)";
+        drawing = false; pinchDrawing = false;
+        return;
+      }
+      const hand = results.multiHandLandmarks[0];
+      // Map finger point to canvas (both square)
+      const x = hand[8].x * canvas.width;
+      const y = hand[8].y * canvas.height;
+      cursor = { x, y };
+
+      // Pinch detection: thumb tip and index tip close together (<0.085)
+      const pinchDist = Math.hypot(hand[8].x - hand[4].x, hand[8].y - hand[4].y);
+      if (pinchDist < 0.085) {
+        gestureInfo.textContent = "Drawing (Pinch)";
+        if (!pinchDrawing) {
+          strokes.push([cursor]);
+          pinchDrawing = true;
+        } else {
+          strokes[strokes.length - 1].push(cursor);
+        }
+        drawing = true;
+      } else {
+        gestureInfo.textContent = "Move cursor";
+        drawing = false;
+        pinchDrawing = false;
+      }
+      drawStrokes(cursor);
+    });
+
+    const camera = new Camera(video, {
+      onFrame: async () => { await hands.send({ image: video }); },
+      width: 360,
+      height: 360
+    });
+    camera.start();
+  </script>
+</body>
+</html>

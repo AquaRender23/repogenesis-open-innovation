@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AirSwipe | FAQs</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Optional Google font similar to your style -->
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;800&display=swap" rel="stylesheet" />
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: "Baloo 2", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #1f2937 0, #020617 45%, #000 100%);
+      color: #f9fafb;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 40px 16px;
+    }
+
+    .faq-page {
+      width: 100%;
+      max-width: 1100px;
+      background: rgba(15, 23, 42, 0.9);
+      border-radius: 24px;
+      padding: 32px 20px 40px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      backdrop-filter: blur(18px);
+    }
+
+    @media (min-width: 768px) {
+      .faq-page {
+        padding: 40px 40px 48px;
+      }
+    }
+
+    .faq-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .faq-title-block {
+      max-width: 480px;
+    }
+
+    .faq-title {
+      font-size: 2.3rem;
+      line-height: 1.1;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      background: linear-gradient(120deg, #38bdf8, #a855f7, #ec4899);
+      -webkit-background-clip: text;
+      color: transparent;
+      margin-bottom: 6px;
+    }
+
+    .faq-subtitle {
+      font-size: 0.98rem;
+      color: #e5e7eb;
+      opacity: 0.9;
+    }
+
+    .faq-tag {
+      font-size: 0.8rem;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: linear-gradient(120deg, rgba(56,189,248,0.15), rgba(168,85,247,0.15));
+      border: 1px solid rgba(148,163,184,0.5);
+      color: #e5e7eb;
+    }
+
+    .faq-section {
+      margin-top: 24px;
+    }
+
+    .faq-section h2 {
+      font-size: 1.25rem;
+      margin-bottom: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #e5e7eb;
+    }
+
+    .faq-section h2::before {
+      content: "";
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 30%, #38bdf8, #a855f7);
+      box-shadow: 0 0 14px rgba(129, 140, 248, 0.75);
+    }
+
+    .faq-grid {
+      margin-top: 10px;
+      border-radius: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      background: linear-gradient(145deg, rgba(15,23,42,0.85), rgba(15,23,42,0.95));
+      padding: 6px;
+    }
+
+    .faq-item {
+      border-radius: 14px;
+      margin: 4px 0;
+      overflow: hidden;
+      background: radial-gradient(circle at top left, rgba(56,189,248,0.08), rgba(15,23,42,0.95));
+      border: 1px solid transparent;
+      transition: border-color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+    }
+
+    .faq-item:hover {
+      border-color: rgba(96, 165, 250, 0.7);
+      transform: translateY(-1px);
+    }
+
+    .faq-item-header {
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      cursor: pointer;
+    }
+
+    .faq-question {
+      font-size: 0.98rem;
+      font-weight: 600;
+      color: #e5e7eb;
+    }
+
+    .faq-toggle-icon {
+      flex-shrink: 0;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      color: #c4b5fd;
+    }
+
+    .faq-answer {
+      padding: 0 14px 0;
+      font-size: 0.92rem;
+      color: #cbd5f5;
+      line-height: 1.5;
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.28s ease-out, padding-bottom 0.2s ease-out;
+    }
+
+    .faq-item.open .faq-answer {
+      padding-bottom: 12px;
+    }
+
+    .faq-item.open .faq-toggle-icon {
+      background: rgba(56, 189, 248, 0.1);
+      color: #f9fafb;
+      border-color: rgba(56, 189, 248, 0.9);
+    }
+
+    .faq-item.open .faq-toggle-icon span {
+      transform: rotate(90deg);
+    }
+
+    .faq-toggle-icon span {
+      display: inline-block;
+      transition: transform 0.2s ease;
+    }
+
+    .faq-footnote {
+      margin-top: 24px;
+      font-size: 0.85rem;
+      color: #9ca3af;
+      text-align: right;
+      opacity: 0.85;
+    }
+
+    .faq-footnote span {
+      background: linear-gradient(120deg, #38bdf8, #ec4899);
+      -webkit-background-clip: text;
+      color: transparent;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <main class="faq-page">
+    <header class="faq-header">
+      <div class="faq-title-block">
+        <h1 class="faq-title">Frequently Asked Questions</h1>
+        <p class="faq-subtitle">
+          Everything you need to know about using <strong>AirSwipe</strong> for gesture-based control of games, tools, and productivity features.
+        </p>
+      </div>
+      <div>
+        <div class="faq-tag">AirSwipe • Gesture Control • Help</div>
+      </div>
+    </header>
+
+    <!-- GENERAL FAQS -->
+    <section class="faq-section" id="general-faqs">
+      <h2>General FAQs</h2>
+      <div class="faq-grid">
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">1. What is AirSwipe?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            AirSwipe is a gesture-based control platform that lets you interact with apps using hand movements instead of clicks.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">2. How does AirSwipe work?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            It uses your device’s camera to detect hand gestures and convert them into actions.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">3. Do I need any special device?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            No, any device with a working camera is enough.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">4. Does AirSwipe collect personal data?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            No, all gesture detection is processed locally and we don’t store any personal data.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">5. Is AirSwipe free to use?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Yes, our basic features are free.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">6. Where can I use AirSwipe?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            You can use AirSwipe on our website for games, tools, and productivity features.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">7. Is AirSwipe safe?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Yes, it does not record or save your video feed.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">8. Do I need to create an account?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Some features require login, but most gesture tools can be used directly.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">9. Which browsers support AirSwipe?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            AirSwipe works best on the latest versions of Chrome, Edge, Firefox, and Safari.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">10. Does AirSwipe work on mobile?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Yes, but performance may vary depending on camera quality and browser support.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- GESTURE CONTROL FAQS -->
+    <section class="faq-section" id="gesture-faqs">
+      <h2>Gesture Control FAQs</h2>
+      <div class="faq-grid">
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">11. What gestures do you support?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            We support taps, swipes, pointer movement, drawing motions, and game-specific gestures.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">12. How do I activate gesture mode?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Click on “Enable Motion Sensor” on any supported feature.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">13. Does AirSwipe track my whole body?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            No, AirSwipe only tracks your hand and finger movements.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">14. Why is my gesture not detected?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Low lighting, poor camera quality, or an awkward camera angle may affect detection. Make sure your hand is clearly visible.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">15. Do I need to keep my hand in the frame?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Yes, your hand should always stay inside the camera view for consistent tracking.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">16. Which hand can I use?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            You can use either hand for most features unless mentioned otherwise.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">17. Can I customize gestures?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Gesture customization will be added soon in upcoming updates.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">18. How far should I sit from the camera?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            About 1–2 feet away from the camera usually gives the best accuracy.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">19. Can AirSwipe detect both hands?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Yes, it can detect both hands, but most games currently use single-hand mode.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">20. Can I disable gesture control anytime?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Yes, click “Disable Motion Sensor” to turn off gesture control.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- GAMES FAQS -->
+    <section class="faq-section" id="games-faqs">
+      <h2>Games FAQs</h2>
+      <div class="faq-grid">
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">21. Which games are available on AirSwipe?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Car Race, Table Tennis, Rock-Paper-Scissors, Sudoku, One-Line Draw, and Color Switch.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">22. Do all games support gesture control?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Yes, every game on AirSwipe is motion-sensor enabled.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">23. Why is my game lagging?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Low lighting, slow internet, or a low-performance device can cause delays in gesture response or gameplay.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">24. Can I play using keyboard instead?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Yes, most games support both keyboard and gesture options.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">25. Is multiplayer mode available?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Currently no, but we are working on adding multiplayer features in future versions.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">26. Can I customize the game themes?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Game themes follow our AirSwipe neon style and may be updated later with more customization options.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">27. Why is the ball/car/racket not moving?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Make sure “Enable Motion Sensor” is turned on and your hand is clearly visible in the camera frame.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">28. Does my background affect gesture recognition?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Very bright, cluttered, or patterned backgrounds may reduce accuracy. A plain background works best.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">29. Do I need a high-end camera for gaming?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            No, a normal laptop or phone camera is usually enough, though higher resolution can improve tracking quality.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">30. Can I play the games full-screen?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Yes, most games support a full-screen mode so you can enjoy an immersive experience.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ADVANCED & SETTINGS FAQS -->
+    <section class="faq-section" id="advanced-faqs">
+      <h2>Advanced & Settings FAQs</h2>
+      <div class="faq-grid">
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">31. Do I need to calibrate my hand before starting?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Yes, AirSwipe may ask you to show your hand once to set the gesture boundary before starting.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">32. Can I adjust the sensitivity of gesture recognition?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Yes, sensitivity settings are available in the Motion Control Settings panel.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">33. Does AirSwipe work in low light?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Gesture accuracy decreases in low light; better lighting significantly improves performance.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">34. Why does the screen say “Hand Not Detected”?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Your hand may be outside the camera frame, too far away, or the lighting might be poor. Adjust your position and lighting.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">35. Can I use AirSwipe while wearing gloves?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Thin gloves may work, but thick or dark gloves can reduce detection accuracy.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">36. Does AirSwipe store my gesture videos?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            No. Gestures are processed live only; we do not record or save video.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">37. Can multiple people use gesture controls at the same time?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            No, AirSwipe is designed to detect only one user’s hand at a time for accurate control.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">38. Can I use AirSwipe without enabling the camera?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            No, camera access is required for gesture detection to work.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">39. Why is the motion sensor showing delayed response?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            This can happen due to low lighting, slow device processing, or camera lag. Try improving lighting or closing heavy apps.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">40. Which hand should I use for gesture games?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            You can use either hand; AirSwipe will detect whichever is visible in the frame.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">41. Does AirSwipe support both horizontal and vertical gestures?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Yes, it detects swipes, pinches, taps, circles, and other directional gestures in both directions.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">42. Why does my gesture sometimes trigger the wrong action?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Background objects, very fast movements, or partial hand visibility may confuse the sensor. Try slower and clearer gestures.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">43. Can I resize the gesture control window?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Yes, you can drag and resize the camera preview panel where supported.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">44. Does background colour affect detection?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Yes, very bright or patterned backgrounds may reduce accuracy. A neutral background is recommended.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">45. Can AirSwipe recognise finger count (1 finger, 2 finger, 3 finger actions)?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Yes, finger-count detection is supported for specific features like One-Line Draw and other gesture-based tools.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">46. Does AirSwipe work on college WiFi?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Yes, it works on any internet connection. Gestures run locally on your device, not on a remote server.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">47. Can I customise the theme or background?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            The neon theme is the default. Custom backgrounds will be added later as part of future updates.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">48. Why does my camera turn off when switching pages?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Some browsers auto-reset camera permissions when you navigate. You may need to re-enable camera access on the new page.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">49. Can I use AirSwipe on a tablet?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Yes, tablets with good-quality cameras work well with AirSwipe.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">50. What happens if my camera has low resolution?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Gesture detection will still work, but accuracy may decrease slightly with very low-resolution cameras.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-item-header">
+            <div class="faq-question">51. How do I report issues or suggest new gesture features?</div>
+            <div class="faq-toggle-icon"><span>+</span></div>
+          </div>
+          <div class="faq-answer">
+            Use the “Feedback / Report Issue” button available in the footer to share bugs, ideas, or feature requests.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="faq-footnote">
+      Still stuck? Reach out via the <span>Feedback</span> button on the main page.
+    </p>
+  </main>
+
+  <script>
+    // Simple accordion toggle
+    document.querySelectorAll('.faq-item-header').forEach(header => {
+      header.addEventListener('click', () => {
+        const item = header.parentElement;
+        const answer = header.nextElementSibling;
+        const isOpen = item.classList.contains('open');
+
+        if (isOpen) {
+          answer.style.maxHeight = null;
+          item.classList.remove('open');
+        } else {
+          item.classList.add('open');
+          answer.style.maxHeight = answer.scrollHeight + 'px';
+        }
+      });
+    });
+  </script>
+</body>
+</html>

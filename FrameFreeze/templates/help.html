@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AirSwipe | Help</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;800&display=swap" rel="stylesheet" />
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: "Baloo 2", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #ffffff;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      background:
+        radial-gradient(circle at top, rgba(96, 165, 250, 0.25), transparent 55%),
+        radial-gradient(circle at bottom, rgba(56, 189, 248, 0.2), transparent 60%),
+        #020617;
+      background-size: cover;
+      overflow: hidden; /* No scroll bar */
+    }
+
+    .scale-wrapper {
+      transform-origin: top center;
+      width: 100%;
+    }
+
+    .guide-wrapper {
+      max-width: 1100px;
+      margin: 30px auto 40px;
+      width: 100%;
+      text-align: center;
+    }
+
+    .help-title {
+      font-size: 38px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      margin-bottom: 12px;
+    }
+
+    .combined-title {
+      font-size: 34px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      margin-bottom: 12px;
+    }
+
+    .tagline {
+      font-size: 16px;
+      opacity: 0.9;
+      max-width: 650px;
+      margin: 0 auto 26px;
+      line-height: 1.4;
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 22px;
+      margin-top: 20px;
+    }
+
+    @media (max-width: 900px) {
+      .cards-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 640px) {
+      .cards-grid { grid-template-columns: repeat(1, 1fr); }
+    }
+
+    .game-card {
+      padding: 18px 18px 20px;
+      border-radius: 26px;
+      background:
+        radial-gradient(circle at top left, rgba(255, 255, 255, 0.12), transparent 55%),
+        rgba(6, 17, 45, 0.92);
+      border: 2px solid rgba(72, 255, 255, 0.9);
+      box-shadow:
+        0 0 15px rgba(72, 255, 255, 0.35),
+        0 18px 35px rgba(0, 0, 30, 0.9);
+      text-align: left;
+    }
+
+    .card-title {
+      font-size: 21px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .card-body {
+      font-size: 14px;
+      line-height: 1.45;
+      opacity: 0.95;
+    }
+
+    .hand-icons {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .hand-icon {
+      flex: 0 0 32px;
+      height: 32px;
+      border-radius: 10px;
+      border: 2px solid rgba(72, 255, 255, 0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      opacity: 0.9;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="scale-wrapper">
+    <div class="guide-wrapper">
+
+      <div class="help-title">HELP</div>
+
+      <div class="combined-title">Game Controls – Gesture Guide</div>
+
+      <p class="tagline">Use these hand gestures in front of the camera to control each AirSwipe game.</p>
+
+      <div class="cards-grid">
+
+        <div class="game-card">
+          <div class="card-title">Sudoku</div>
+          <div class="card-body">
+            <b>Move pointer:</b> point with your index finger and move your hand.<br><br>
+            <b>Select a cell:</b> bend the thumb towards your palm and hold for 1–2 seconds.
+          </div>
+        </div>
+
+        <div class="game-card">
+          <div class="card-title">UniLine</div>
+          <div class="card-body">
+            <b>Start / continue drawing:</b> make a pinch on the first dot.<br><br>
+            <b>Draw path:</b> keep the pinch and move along the dots.
+          </div>
+        </div>
+
+        <div class="game-card">
+          <div class="card-title">Colour Switch</div>
+          <div class="card-body">
+            <b>Jump:</b> make a closed fist.<br><br>
+            <b>Restart level:</b> show an open palm.
+            <div class="hand-icons">
+              <div class="hand-icon">✊</div>
+              <div class="hand-icon">🖐</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="game-card">
+          <div class="card-title">Table Tennis</div>
+          <div class="card-body">
+            <b>Move paddle:</b> show your open palm and move it left or right.
+          </div>
+        </div>
+
+        <div class="game-card">
+          <div class="card-title">Rock Paper Scissors</div>
+          <div class="card-body">
+            <b>Rock:</b> closed fist.<br><br>
+            <b>Paper:</b> open palm.<br><br>
+            <b>Scissors:</b> V-shape with index and middle finger.
+          </div>
+        </div>
+
+        <div class="game-card">
+          <div class="card-title">Car Racing</div>
+          <div class="card-body">
+            <b>Go left:</b> swipe your hand left.<br><br>
+            <b>Go right:</b> swipe your hand right.<br><br>
+            Keep swiping to continue turning.
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function scaleToFit() {
+      const wrapper = document.querySelector('.scale-wrapper');
+      const screenH = window.innerHeight;
+      const contentH = wrapper.scrollHeight;
+      const scale = screenH / contentH;
+      wrapper.style.transform = `scale(${scale})`;
+    }
+
+    window.onload = scaleToFit;
+    window.onresize = scaleToFit;
+  </script>
+</body>
+</html>

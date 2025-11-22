@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Color Switch – AirSwipe Edition Infinite with Pause</title>
+  <style>
+    /* ... your original style unchanged ... */
+    body { margin: 0; height: 100vh; display: flex; align-items: center;
+      justify-content: center; background: radial-gradient(circle at top, #2b2d42, #000000);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #fff;
+    }
+    #game-container { position: relative; border-radius: 16px; overflow: hidden;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); }
+    canvas { display: block; background: linear-gradient(180deg, #111827 0%, #020617 100%); }
+    #ui-overlay { position: absolute; top: 0; left: 0; width: 100%; padding: 10px 16px;
+      display: flex; justify-content: space-between; align-items: center; pointer-events: none; font-size: 14px; }
+    .tag { background: rgba(15, 23, 42, 0.85); padding: 4px 10px;
+      border-radius: 999px; border: 1px solid rgba(148, 163, 184, 0.5);
+      backdrop-filter: blur(10px); }
+    #center-text { position: absolute; inset: 0; display: flex; align-items: center;
+      justify-content: center; flex-direction: column; text-align: center; pointer-events: none; }
+    #center-text h1 { margin: 0; font-size: 26px; letter-spacing: 1px; }
+    #center-text p { margin: 6px 0 0; font-size: 14px; opacity: 0.85; }
+    #center-text span.keys { font-family: "Consolas", "Fira Code", monospace;
+      background: rgba(15, 23, 42, 0.85); padding: 4px 10px;
+      border-radius: 8px; border: 1px solid rgba(148, 163, 184, 0.5); margin-top: 8px; display: inline-block; }
+    #game-over { position: absolute; inset: 0; display: none; align-items: center;
+      justify-content: center; flex-direction: column; text-align: center;
+      background: radial-gradient(circle at center, rgba(15, 23, 42, 0.9), rgba(0, 0, 0, 0.95)); }
+    #game-over h2 { margin: 0; font-size: 24px; color: #f97373; }
+    #game-over p { margin: 8px 0 0; font-size: 14px; opacity: 0.9; }
+    #game-over span.keys { font-family: "Consolas", "Fira Code", monospace;
+      background: rgba(15, 23, 42, 0.85); padding: 4px 10px;
+      border-radius: 8px; border: 1px solid rgba(148, 163, 184, 0.5); margin-top: 8px; display: inline-block; }
+    #webcam { position: absolute; top: 12px; right: 12px; width: 110px; height: 80px;
+      border-radius: 12px; border: 2px solid #55b8e2; box-shadow: 0 6px 22px #222b;
+      background: #efefef; object-fit: cover; z-index: 100; user-select: none; }
+    #gestureInfo { position: absolute; right: 130px; top: 18px; font-weight: 700; font-size: 1rem;
+      color: #55aaffcc; user-select: none; z-index: 101; text-shadow: 0 0 7px #55aaff70; }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="game" width="400" height="600"></canvas>
+    <video id="webcam" autoplay muted playsinline></video>
+    <div id="gestureInfo">(No Gesture)</div>
+    <div id="ui-overlay">
+      <div class="tag">Score: <span id="score">0</span></div>
+      <div class="tag">Best: <span id="best-score">0</span></div>
+    </div>
+    <div id="center-text">
+      <h1>COLOR SWITCH</h1>
+      <p>Show fist to jump. Show palm to restart.<br>Peace sign to pause/resume.</p>
+      <span class="keys">🖐 ✊ ✌</span>
+    </div>
+    <div id="game-over">
+      <h2>Game Over</h2>
+      <p>Your Score: <span id="final-score">0</span></p>
+      <p>Show palm to restart</p>
+      <span class="keys">🖐</span>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/hand-pose-detection"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands"></script>
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const WIDTH = canvas.width;
+    const HEIGHT = canvas.height;
+
+    const scoreEl = document.getElementById("score");
+    const bestScoreEl = document.getElementById("best-score");
+    const centerText = document.getElementById("center-text");
+    const gameOverScreen = document.getElementById("game-over");
+    const finalScoreEl = document.getElementById("final-score");
+    const webcam = document.getElementById("webcam");
+    const gestureInfo = document.getElementById("gestureInfo");
+
+    const COLORS = ["#44e0ff", "#ff3366", "#ffdd33", "#9f7bff"];
+
+    const ball = { x: WIDTH / 2, y: HEIGHT * 0.75, radius: 12, colorIndex: 1, vy: 0 };
+    const GRAVITY = 0.21;
+    const JUMP_VEL = -5.3;
+    const ring = { x: WIDTH / 2, y: HEIGHT * 0.35, outerRadius: 110, innerRadius: 80, angle: 0, rotationSpeed: 0.022 };
+    const colorSwitch = { x: WIDTH / 2, y: ring.y + ring.outerRadius + 50, radius: 10, active: true };
+
+    let score = 0;
+    let bestScore = parseInt(localStorage.getItem("colorSwitchBest") || "0", 10);
+    bestScoreEl.textContent = bestScore;
+    let running = false;
+    let gameOver = false;
+
+    function randomRotationSpeed() {
+      const speed = Math.random() * 0.04 + 0.015;
+      const dir = Math.random() < 0.5 ? -1 : 1;
+      return speed * dir;
+    }
+
+    function setRandomBallColor(differentFromCurrent = true) {
+      let idx = ball.colorIndex;
+      while (differentFromCurrent && idx === ball.colorIndex) {
+        idx = Math.floor(Math.random() * COLORS.length);
+      }
+      ball.colorIndex = idx;
+    }
+
+    function resetGame() {
+      score = 0;
+      scoreEl.textContent = score;
+      ball.x = WIDTH / 2;
+      ball.y = HEIGHT * 0.75;
+      ball.vy = 0;
+      setRandomBallColor(false);
+      ring.y = HEIGHT * 0.35;
+      ring.angle = 0;
+      ring.rotationSpeed = randomRotationSpeed();
+      colorSwitch.y = ring.y + ring.outerRadius + 50;
+      colorSwitch.active = true;
+      gameOver = false;
+      running = true;
+      centerText.style.display = "none";
+      gameOverScreen.style.display = "none";
+    }
+
+    function triggerGameOver() {
+      if (gameOver) return;
+      gameOver = true;
+      running = false;
+      finalScoreEl.textContent = score;
+      gameOverScreen.style.display = "flex";
+      centerText.style.display = "none";
+    }
+
+    function jump() {
+      if (!running && !gameOver) {
+        resetGame();
+      } else if (gameOver) {
+        resetGame();
+      } else {
+        ball.vy = JUMP_VEL;
+      }
+    }
+
+    function update() {
+      if (!running) return;
+      ball.vy += GRAVITY;
+      ball.y += ball.vy;
+
+      const scrollSpeed = 0.29;
+      ball.y -= scrollSpeed;
+      ring.y += scrollSpeed;
+      colorSwitch.y += scrollSpeed;
+
+      ring.angle += ring.rotationSpeed;
+
+      if (ring.y - ring.outerRadius > HEIGHT + 40) {
+        ring.y = -ring.outerRadius - 40;
+        ring.angle = 0;
+        ring.rotationSpeed = randomRotationSpeed();
+        colorSwitch.y = ring.y + ring.outerRadius + 50;
+        colorSwitch.active = true;
+        score++;
+        scoreEl.textContent = score;
+        if (score > bestScore) {
+          bestScore = score;
+          bestScoreEl.textContent = bestScore;
+          localStorage.setItem("colorSwitchBest", bestScore);
+        }
+      }
+
+      if (ball.y - ball.radius > HEIGHT + 40 || ball.y + ball.radius < -40) {
+        triggerGameOver();
+        return;
+      }
+
+      checkRingCollision();
+      checkColorSwitchCollision();
+    }
+
+    function checkRingCollision() {
+      const dx = ball.x - ring.x;
+      const dy = ball.y - ring.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist + ball.radius > ring.innerRadius && dist - ball.radius < ring.outerRadius) {
+        let angle = Math.atan2(dy, dx);
+        if (angle < 0) angle += Math.PI * 2;
+        let rel = angle - ring.angle;
+        rel = ((rel % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+        const sector = Math.floor(rel / (Math.PI / 2));
+        const arcColorIndex = sector % COLORS.length;
+
+        if (arcColorIndex !== ball.colorIndex) {
+          triggerGameOver();
+        }
+      }
+    }
+
+    function checkColorSwitchCollision() {
+      if (!colorSwitch.active) return;
+      const dx = ball.x - colorSwitch.x;
+      const dy = ball.y - colorSwitch.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < ball.radius + colorSwitch.radius) {
+        setRandomBallColor(true);
+        colorSwitch.active = false;
+      }
+    }
+
+    function drawBall() {
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+      ctx.fillStyle = COLORS[ball.colorIndex];
+      ctx.fill();
+      ctx.closePath();
+
+      const gradient = ctx.createRadialGradient(ball.x, ball.y, ball.radius * 0.2, ball.x, ball.y, ball.radius * 2);
+      gradient.addColorStop(0, COLORS[ball.colorIndex]);
+      gradient.addColorStop(1, "transparent");
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.radius * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawRing() {
+      for (let i = 0; i < 4; i++) {
+        const start = ring.angle + i * (Math.PI / 2);
+        const end = start + Math.PI / 2;
+        ctx.beginPath();
+        ctx.arc(ring.x, ring.y, ring.outerRadius, start, end);
+        ctx.arc(ring.x, ring.y, ring.innerRadius, end, start, true);
+        ctx.closePath();
+        ctx.fillStyle = COLORS[i];
+        ctx.fill();
+      }
+      ctx.beginPath();
+      ctx.arc(ring.x, ring.y, ring.innerRadius, 0, Math.PI * 2);
+      ctx.fillStyle = "#020617";
+      ctx.fill();
+    }
+
+    function drawColorSwitch() {
+      if (!colorSwitch.active) return;
+      for (let i = 0; i < 4; i++) {
+        const start = i * (Math.PI / 2);
+        const end = start + Math.PI / 2;
+        ctx.beginPath();
+        ctx.arc(colorSwitch.x, colorSwitch.y, colorSwitch.radius, start, end);
+        ctx.strokeStyle = COLORS[i];
+        ctx.lineWidth = 4;
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.arc(colorSwitch.x, colorSwitch.y, colorSwitch.radius * 0.4, 0, Math.PI * 2);
+      ctx.fillStyle = "#fff";
+      ctx.fill();
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, WIDTH, HEIGHT);
+      drawRing();
+      drawColorSwitch();
+      drawBall();
+    }
+
+    function loop() {
+      update();
+      render();
+      requestAnimationFrame(loop);
+    }
+
+    /////////////////////////////////////////////////////
+    // Gesture Detection & Control
+
+    let lastFistState = false; // Debounce variable for jump
+    let lastPalmState = false; // Debounce for restart
+    let lastPeaceState = false; // Debounce for pause/resume
+
+    async function initHandGestures() {
+      const video = webcam;
+      if (window.tf && tf.setBackend) {
+        await tf.setBackend("webgl");
+        await tf.ready();
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } });
+      video.srcObject = stream;
+      await video.play();
+
+      const detector = await handPoseDetection.createDetector(
+        handPoseDetection.SupportedModels.MediaPipeHands,
+        {runtime: "mediapipe", modelType: "lite", solutionPath: "https://cdn.jsdelivr.net/npm/@mediapipe/hands"}
+      );
+
+      const jumpCooldown = 600;
+      const restartCooldown = 600;
+      const pauseCooldown = 1000;
+
+      let lastJumpTime = 0, lastRestartTime = 0, lastPauseToggleTime = 0;
+
+      function isFist(keypoints) {
+        function bent(tip, dip) { return keypoints[tip].y > keypoints[dip].y + 0.02; }
+        return bent(8, 6) && bent(12, 10) && bent(16, 14) && bent(20, 18);
+      }
+      function isPalmOpen(keypoints) {
+        function extended(tip, pip) { return keypoints[tip].y < keypoints[pip].y - 0.02; }
+        return extended(8, 6) && extended(12, 10) && extended(16, 14) && extended(20, 18);
+      }
+      function isPeaceSign(keypoints) {
+        function extended(tip, pip) { return keypoints[tip].y < keypoints[pip].y - 0.02; }
+        function folded(tip, pip) { return keypoints[tip].y > keypoints[pip].y + 0.02; }
+        return extended(8, 6) && extended(12, 10) && folded(16, 14) && folded(20, 18);
+      }
+
+      async function detect() {
+        const hands = await detector.estimateHands(video, { flipHorizontal: true });
+        if (hands.length > 0) {
+          const kp = hands[0].keypoints;
+          const now = performance.now();
+          // Fist (jump) – DEBOUNCED
+          if (isFist(kp)) {
+            if (!lastFistState && now - lastJumpTime > jumpCooldown) {
+              jump();
+              lastJumpTime = now;
+              gestureInfo.textContent = "👊 Jump (Fist)";
+            }
+            lastFistState = true;
+          } else {
+            lastFistState = false;
+          }
+          // Palm (restart) – DEBOUNCED
+          if (isPalmOpen(kp)) {
+            if (!lastPalmState && now - lastRestartTime > restartCooldown) {
+              if (gameOver) resetGame();
+              lastRestartTime = now;
+              gestureInfo.textContent = "🖐 Restart (Open Palm)";
+            }
+            lastPalmState = true;
+          } else {
+            lastPalmState = false;
+          }
+          // Peace sign (pause/resume) – DEBOUNCED
+          if (isPeaceSign(kp)) {
+            if (!lastPeaceState && now - lastPauseToggleTime > pauseCooldown) {
+              running = !running;
+              lastPauseToggleTime = now;
+              gestureInfo.textContent = running ? "▶️ Resumed (Peace Sign)" : "⏸️ Paused (Peace Sign)";
+            }
+            lastPeaceState = true;
+          } else {
+            lastPeaceState = false;
+          }
+          // Default gesture info
+          if (!isFist(kp) && !isPalmOpen(kp) && !isPeaceSign(kp)) {
+            gestureInfo.textContent = "(Show fist to jump, open palm to restart, peace sign to pause)";
+          }
+        } else {
+          gestureInfo.textContent = "(Show your hand)";
+        }
+        requestAnimationFrame(detect);
+      }
+      detect();
+    }
+
+    resetGame();
+    loop();
+    initHandGestures();
+
+  </script>
+</body>
+</html>

@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Gesture RPS – 2 Halves Animation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <!-- MediaPipe Hands + TF.js -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/hand-pose-detection"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands"></script>
+
+  <style>
+    body {
+      margin: 0; min-height: 100vh; background: linear-gradient(90deg,#16003b 54%,#03343c 100%);
+      font-family: system-ui, 'Segoe UI', Arial, sans-serif; color: #f8f9ff;
+      display: flex; align-items: stretch; justify-content: stretch;
+    }
+    .split-main {
+      display: flex; width: 100vw; height: 100vh; min-width: 800px;
+    }
+    .half {
+      flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+      position: relative; overflow: hidden; min-width: 320px;
+      padding-top: 45px;
+    }
+    .half-left  { background: linear-gradient(90deg, #3d298e26 80%, transparent 100%);}
+    .half-right { background: linear-gradient(90deg, transparent 0%, #13fffe07 96%);}
+    .mini-cam {
+      width: 80px; height: 60px; position: absolute; top:20px; left:20px;
+      border-radius: 14px; object-fit: cover; box-shadow: 0 2px 18px #222a;
+      border: 2px solid #669aff; background: #191a34;
+      z-index: 24;
+    }
+    .mini-cam.bot {
+      left: auto; right:20px; top:18px;
+      background: #203545;
+    }
+    .cam-label {
+      position: absolute; left:22px; top:85px; background: #222c;
+      color:#b7c1ff; border-radius: 8px; padding:3px 10px; font-size: 13px;
+      z-index:24; font-weight:600;
+    }
+    .cam-label.bot { left: auto; right:22px; top:84px;}
+    .hand-anim, .bot-hand-anim {
+      width: 150px; height: 140px; position: absolute;
+      left: 50%; transform: translateX(-50%);
+      bottom: 160px;
+      font-size:72px; display:flex; justify-content:center; align-items:center;
+      opacity: 0;
+    }
+    .hand-anim.show { animation: userHandIn 0.6s forwards;}
+    .bot-hand-anim.show { animation: botHandIn 0.65s forwards;}
+    @keyframes userHandIn {
+      0% { opacity: 0; transform: translateX(-50%) translateY(100px) scale(0.5);}
+      70%{ opacity: 1; transform: translateX(-50%) translateY(-12px) scale(1.22);}
+      100%{ opacity: 1; transform: translateX(-50%) translateY(0) scale(1);}
+    }
+    @keyframes botHandIn {
+      0% { opacity: 0; transform: translateX(-50%) translateY(140px) scale(0.5);}
+      60%{ opacity: 1; transform: translateX(-50%) translateY(-8px) scale(1.21);}
+      100%{ opacity: 1; transform: translateX(-50%) translateY(0) scale(1);}
+    }
+    .scorebox {
+      position: absolute; left:0; right:0; bottom:85px;
+      display: flex; justify-content: center; align-items: flex-end;
+      flex-direction: column;
+    }
+    .score-label {
+      font-weight:600; font-size:1.05rem; color: #cfc7ff; margin-bottom:2px; text-shadow:0 0 6px #131eaa;
+      text-align: center;
+    }
+    .score-val { font-size:2.3rem; min-width: 50px; text-align: center;}
+    .center-result {
+      position: absolute; left:50%; transform:translateX(-50%);
+      bottom:35px; font-size:2rem; font-weight:700; color:#fffd; text-align:center;
+      background: #190a33d9; border-radius:16px; padding:12px 36px; box-shadow:0 8px 32px #2226;
+      z-index:25; min-width: 220px;
+    }
+    .center-result.win { color: #5bffb5;}
+    .center-result.lose { color: #ff6b9e;}
+    .center-result.draw { color:#aad7ff;}
+    .choice-boxes {
+      display: flex; justify-content: center; align-items: center; gap:30px;
+      position: absolute; left:0; right:0; bottom:25px;
+      z-index:18;
+    }
+    .emoji-choice {
+      font-size:2.6rem; background: #111835ee; border-radius:18px; min-width:68px;
+      min-height:66px; display:flex;align-items:center;justify-content:center;
+      box-shadow:0 2px 17px #2227;
+      border:3px solid #67f;
+      margin:0 8px; user-select: none;
+      opacity:0.77;
+      transition:background 0.2s,border 0.2s;
+    }
+    .choice-btns {
+      display: flex; flex-direction: row; gap:13px;
+      position: absolute; left:50%; transform:translateX(-50%); top:11px;
+      z-index:19;
+    }
+    .choice-btn {
+      border-radius: 13px; border: 2px solid #222d; font-size:1.17rem; font-weight:600;
+      color: #e3eaff;
+      background: #1a1e37bb; padding:10px 21px; margin: 0 4px;
+      cursor:pointer; transition: box-shadow 0.16s, background 0.13s;
+      box-shadow:0 2px 10px #2225; letter-spacing:0.03em
+    }
+    .choice-btn:hover { background:#2e236fdd; color:#5bffb5; border:2px solid #5bffb5;}
+    @media (max-width:950px) {
+      .split-main { flex-direction: column; min-width: 320px; }
+      .half{ min-width: 0;}
+      .hand-anim,.bot-hand-anim { position:relative; left:unset; bottom:unset;}
+      .scorebox, .center-result, .choice-boxes, .choice-btns {position:relative;left:unset;right:unset;top:unset;bottom:unset;}
+    }
+  </style>
+</head>
+<body>
+<div class="split-main">
+  <!-- User side -->
+  <div class="half half-left">
+    <video id="webcam" class="mini-cam"></video>
+    <div class="cam-label">Your camera</div>
+    <div id="userHand" class="hand-anim"></div>
+    <div class="scorebox">
+      <div class="score-label">Your Score</div>
+      <div class="score-val" id="scoreUser">0</div>
+    </div>
+  </div>
+  <!-- Bot side -->
+  <div class="half half-right">
+    <div class="mini-cam bot" id="compCam"></div>
+    <div class="cam-label bot">Bot cam</div>
+    <div id="botHand" class="bot-hand-anim"></div>
+    <div class="scorebox">
+      <div class="score-label">Bot Score</div>
+      <div class="score-val" id="scoreBot">0</div>
+    </div>
+  </div>
+  <!-- Choices and outcome -->
+  <div class="choice-btns">
+    <button class="choice-btn" data-choice="rock">✊ Rock</button>
+    <button class="choice-btn" data-choice="paper">🖐 Paper</button>
+    <button class="choice-btn" data-choice="scissors">✌ Scissors</button>
+  </div>
+  <div class="center-result" id="resultTxt"></div>
+  <div class="choice-boxes">
+    <div class="emoji-choice" id="choiceUser">–</div>
+    <div class="emoji-choice" id="choiceBot">–</div>
+  </div>
+</div>
+
+<script>
+  // ========== GAME LOGIC & ANIMATIONS =========
+  const emojiMap = { rock:"✊", paper:"🖐", scissors:"✌" };
+  let scoreUser=0, scoreBot=0;
+  let lastUserMove="", lastBotMove="";
+  let gameRunning=false;
+
+  const scoreUserEl=document.getElementById("scoreUser");
+  const scoreBotEl=document.getElementById("scoreBot");
+  const resultTxtEl=document.getElementById("resultTxt");
+  const choiceUserEl=document.getElementById("choiceUser");
+  const choiceBotEl=document.getElementById("choiceBot");
+  const userHandEl=document.getElementById("userHand");
+  const botHandEl=document.getElementById("botHand");
+
+  function playRound(userMove, byGesture=false) {
+    gameRunning=true;
+    const moves=["rock","paper","scissors"];
+    const botMove = moves[Math.floor(Math.random()*moves.length)];
+
+    animateHand(userHandEl,userMove,true);
+    animateHand(botHandEl,botMove,false);
+    showChoices(userMove,botMove);
+    lastUserMove=userMove; lastBotMove=botMove;
+    setTimeout(()=>showOutcome(userMove,botMove),540);
+  }
+
+  function showChoices(um,bm){
+    choiceUserEl.textContent = emojiMap[um] || "–";
+    choiceBotEl.textContent  = emojiMap[bm] || "–";
+  }
+
+  function showOutcome(um,bm){
+    let res = "";
+    if (um===bm) { res="Draw ✨"; resultTxtEl.className="center-result draw";}
+    else if (
+      (um==="rock"&&bm==="scissors") ||
+      (um==="paper"&&bm==="rock") ||
+      (um==="scissors"&&bm==="paper")
+    ) { res="You win! 🚀"; resultTxtEl.className="center-result win"; scoreUser++; scoreUserEl.textContent = scoreUser; }
+    else { res="You lose! 💥"; resultTxtEl.className="center-result lose"; scoreBot++; scoreBotEl.textContent = scoreBot;}
+    resultTxtEl.textContent=res;
+  }
+
+  function animateHand(handEl, move, isUser){
+    handEl.innerHTML='<span>'+ (emojiMap[move]||"–") +'</span>';
+    handEl.className = isUser?"hand-anim show":"bot-hand-anim show";
+    setTimeout(()=>{handEl.className = isUser?"hand-anim":"bot-hand-anim";},700);
+  }
+
+  // Buttons/key input
+  document.querySelectorAll(".choice-btn").forEach(btn=>{
+    btn.onclick=_=>playRound(btn.getAttribute("data-choice"));
+  });
+  document.addEventListener("keydown",e=>{
+    const k=e.key.toLowerCase();
+    if(k==="r")playRound("rock");
+    if(k==="p")playRound("paper");
+    if(k==="s")playRound("scissors");
+  });
+
+  // ===== HAND-TRACKING ======================
+  const videoEl=document.getElementById("webcam");
+  let handDetector=null, lastGesture=null, lastTime=0;
+  async function initHandTracking(){
+    if(window.tf && tf.setBackend){await tf.setBackend("webgl"); await tf.ready();}
+    const stream=await navigator.mediaDevices.getUserMedia({video:{width:180,height:90}});
+    videoEl.srcObject=stream; await videoEl.play();
+    handDetector=await handPoseDetection.createDetector(
+      handPoseDetection.SupportedModels.MediaPipeHands,
+      {runtime:"mediapipe",modelType:"lite",solutionPath:"https://cdn.jsdelivr.net/npm/@mediapipe/hands"}
+    );
+    requestAnimationFrame(handLoop);
+  }
+  function fingerCount(hand){
+    let fingers=0;
+    if(Math.abs(hand[4].x-hand[2].x)>0.08)fingers++;
+    if(hand[8].y<hand[6].y)fingers++;
+    if(hand[12].y<hand[10].y)fingers++;
+    if(hand[16].y<hand[14].y)fingers++;
+    if(hand[20].y<hand[18].y)fingers++;
+    return fingers;
+  }
+  function detectGesture(hand){
+    const c=fingerCount(hand);
+    if(c===0)return"rock";
+    if(c===2)return"scissors";
+    if(c>=4)return"paper";
+    return null;
+  }
+  async function handLoop(){
+    if(handDetector && videoEl.readyState===4){
+      try{
+        const hands=await handDetector.estimateHands(videoEl,{flipHorizontal:true});
+        if(hands.length>0){
+          const hand=hands[0].keypoints;
+          if(hand){
+            const gesture=detectGesture(hand.map(pt=>({x:pt.x/videoEl.videoWidth,y:pt.y/videoEl.videoHeight})));
+            if(gesture && gesture!==lastGesture && Date.now()-lastTime>1000){
+              playRound(gesture,true);
+              lastGesture=gesture; lastTime=Date.now();
+            }
+          }
+        } else lastGesture=null;
+      }catch{}
+    }
+    requestAnimationFrame(handLoop);
+  }
+  // Init!
+  initHandTracking().catch(()=>{});
+
+  // Fill the bot mini-cam with a static emoji for "bot camera"
+  document.getElementById("compCam").innerHTML = '<span style="font-size:2.7rem;display:flex;justify-content:center;align-items:center;">🤖</span>';
+</script>
+</body>
+</html>

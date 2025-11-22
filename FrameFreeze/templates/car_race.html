@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Temple Run – Car Version (Swipe Control)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #1a1a2e 0, #050816 40%, #000 100%);
+      color: #f5f5f5;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .game-wrapper { width: 100%; max-width: 1000px; padding: 20px; }
+    .hud { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+    .logo {
+      font-size: 1.4rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+      background: linear-gradient(135deg, #ffb347, #ffcc33);
+      -webkit-background-clip: text; color: transparent;
+      text-shadow: 0 0 8px rgba(255, 204, 51, 0.4);
+    }
+    .stats { display: flex; gap: 16px; font-weight: 600; }
+    #score, #coins { padding: 6px 12px; border-radius: 999px; background: rgba(0,0,0,0.4);
+      box-shadow: 0 0 10px rgba(0,0,0,0.6);}
+    .game-container {
+      position: relative; background: linear-gradient(to bottom, #111827, #020617);
+      border-radius: 20px; padding: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.7); }
+    #gameCanvas { display: block; margin: 0 auto; border-radius: 14px;
+      background: radial-gradient(circle at top, #1f2937, #020617 60%); }
+    .controls-info { text-align: center; margin-top: 10px; font-size: 0.9rem; opacity: 0.9;}
+    .start-panel, .game-over {
+      position: absolute; inset: 0; margin: auto; max-width: 360px; height: fit-content;
+      padding: 20px 24px; border-radius: 20px;
+      background: rgba(15, 23, 42, 0.95); box-shadow: 0 20px 40px rgba(0,0,0,0.8);
+      text-align: center; backdrop-filter: blur(12px);
+    }
+    .start-panel h2, .game-over h2 { margin-bottom: 10px; font-size: 1.6rem; }
+    .start-panel p, .game-over p { font-size: 0.95rem; margin-bottom: 12px; color: #e5e7eb; }
+    button {
+      border: none; outline: none; padding: 10px 20px; border-radius: 999px; cursor: pointer;
+      font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;
+      background: linear-gradient(135deg, #22c55e, #22d3ee); color: #020617;
+      box-shadow: 0 10px 20px rgba(34,197,94,0.4);
+      transition: transform 0.15s, box-shadow 0.15s, filter 0.15s;
+    }
+    button:hover { transform: translateY(-2px); box-shadow: 0 14px 24px rgba(34,197,94,0.5); filter: brightness(1.05);}
+    button:active { transform: translateY(0); box-shadow: 0 8px 18px rgba(34,197,94,0.35);}
+    .hidden { display: none; }
+    /* Webcam preview for gesture debugging */
+    #webcam {
+      position: fixed; top: 16px; right: 18px; width: 120px; height: 90px; z-index: 10;
+      border-radius: 10px; background: #222; border: 2px solid #0ff; box-shadow: 0 0 18px #0fd6, 0 0 8px #555 inset;
+      opacity: 0.9;
+    }
+    .gesture-tip {
+      text-align: center;
+      margin-top: 0.4em;
+      font-size: 1.05em;
+      color: #affcff;
+      letter-spacing: 0.02em;
+      text-shadow: 0 1px 4px #4449;
+    }
+  </style>
+  <!-- TensorFlow/Mediapipe scripts for gesture control -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/hand-pose-detection"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands"></script>
+</head>
+<body>
+  <div class="game-wrapper">
+    <div class="hud">
+      <div class="logo">Swift Car Run</div>
+      <div class="stats">
+        <span id="score">Score: 0</span>
+        <span id="coins">Coins: 0</span>
+      </div>
+    </div>
+    <div class="game-container">
+      <canvas id="gameCanvas" width="800" height="500"></canvas>
+      <div class="controls-info">
+        <p>
+          <strong>Controls:</strong> ← Left | → Right |<br>
+          Swipe your hand in webcam: Change lane
+        </p>
+        <div class="gesture-tip" id="gestureTip">Move your hand left/right in the webcam to switch lanes</div>
+      </div>
+      <div id="gameOverPanel" class="game-over hidden">
+        <h2>Game Over</h2>
+        <p id="finalScoreText">Score: 0</p>
+        <p id="finalCoinsText">Coins: 0</p>
+        <button id="restartBtn">Restart</button>
+      </div>
+      <div id="startPanel" class="start-panel">
+        <h2>Swift Car Run</h2>
+        <p>Use arrow keys or swipe left/right in webcam to move.<br>Avoid obstacles and collect coins!</p>
+        <button id="startBtn">Start Game</button>
+      </div>
+    </div>
+  </div>
+  <video id="webcam" autoplay muted playsinline></video>
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const scoreEl = document.getElementById("score");
+    const coinsEl = document.getElementById("coins");
+    const gameOverPanel = document.getElementById("gameOverPanel");
+    const finalScoreText = document.getElementById("finalScoreText");
+    const finalCoinsText = document.getElementById("finalCoinsText");
+    const restartBtn = document.getElementById("restartBtn");
+    const startPanel = document.getElementById("startPanel");
+    const startBtn = document.getElementById("startBtn");
+    const gestureTip = document.getElementById("gestureTip");
+
+    // Game constants
+    const laneCount = 3;
+    const laneWidth = canvas.width / laneCount;
+    const playerWidth = 60;
+    const playerHeight = 110;
+    const groundY = canvas.height - 90;
+    const obstacleWidth = 40;
+    const obstacleHeight = 60;
+    const coinRadius = 12;
+
+    let playerLane = 1; // 0,1,2
+    let playerY = groundY - playerHeight;
+    let isJumping = false;
+    let jumpVelocity = 0;
+    const gravity = 0.6;
+    const jumpStrength = 12;
+    let obstacles = [];
+    let coins = [];
+    let speed = 6;
+    let spawnTimer = 0;
+    let coinSpawnTimer = 0;
+    let running = false;
+    let gameOver = false;
+    let score = 0;
+    let coinsCollected = 0;
+    let frameCount = 0;
+
+    function laneCenterX(laneIndex) {
+      return laneIndex * laneWidth + laneWidth / 2;
+    }
+    function resetGame() {
+      playerLane = 1;
+      playerY = groundY - playerHeight;
+      isJumping = false;
+      jumpVelocity = 0;
+      obstacles = [];
+      coins = [];
+      speed = 6;
+      spawnTimer = 0;
+      coinSpawnTimer = 0;
+      score = 0;
+      coinsCollected = 0;
+      frameCount = 0;
+      gameOver = false;
+      running = true;
+      gameOverPanel.classList.add("hidden");
+      startPanel.classList.add("hidden");
+    }
+    window.addEventListener("keydown", (e) => {
+      if (!running && !gameOver) return;
+      if (e.key === "ArrowLeft") {
+        if (playerLane > 0) playerLane--;
+      } else if (e.key === "ArrowRight") {
+        if (playerLane < laneCount - 1) playerLane++;
+      } else if (e.key === "ArrowUp") {
+        if (!isJumping) {
+          isJumping = true;
+          jumpVelocity = -jumpStrength;
+        }
+      }
+    });
+    function update() {
+      if (!running) { requestAnimationFrame(update); return; }
+      frameCount++;
+      score += 1;
+      if (frameCount % 300 === 0) { speed += 0.5; }
+      if (isJumping) {
+        playerY += jumpVelocity;
+        jumpVelocity += gravity;
+        if (playerY >= groundY - playerHeight) {
+          playerY = groundY - playerHeight;
+          isJumping = false;
+          jumpVelocity = 0;
+        }
+      }
+      spawnTimer--;
+      if (spawnTimer <= 0) {
+        const lane = Math.floor(Math.random() * laneCount);
+        obstacles.push({ lane, y: -obstacleHeight - 20 });
+        spawnTimer = 80 + Math.random() * 60;
+      }
+      coinSpawnTimer--;
+      if (coinSpawnTimer <= 0) {
+        const lane = Math.floor(Math.random() * laneCount);
+        coins.push({ lane, y: -coinRadius * 2 - 20 });
+        coinSpawnTimer = 50 + Math.random() * 50;
+      }
+      obstacles.forEach(o => { o.y += speed; });
+      coins.forEach(c => { c.y += speed; });
+      obstacles = obstacles.filter(o => o.y < canvas.height + 100);
+      coins = coins.filter(c => c.y < canvas.height + 100);
+      const playerX = laneCenterX(playerLane) - playerWidth / 2;
+      const playerRect = { x: playerX, y: playerY, w: playerWidth, h: playerHeight };
+      for (let o of obstacles) {
+        const ox = laneCenterX(o.lane) - obstacleWidth / 2;
+        const oy = o.y;
+        const rect = { x: ox, y: oy, w: obstacleWidth, h: obstacleHeight };
+        if (rectsOverlap(playerRect, rect)) { endGame(); break; }
+      }
+      for (let i = coins.length - 1; i >= 0; i--) {
+        const c = coins[i];
+        const cx = laneCenterX(c.lane);
+        const cy = c.y;
+        if (circleRectOverlap(cx, cy, coinRadius, playerRect)) {
+          coinsCollected++;
+          coins.splice(i, 1);
+        }
+      }
+      scoreEl.textContent = `Score: ${score}`;
+      coinsEl.textContent = `Coins: ${coinsCollected}`;
+      draw();
+      requestAnimationFrame(update);
+    }
+    function endGame() {
+      gameOver = true;
+      running = false;
+      finalScoreText.textContent = `Score: ${score}`;
+      finalCoinsText.textContent = `Coins: ${coinsCollected}`;
+      gameOverPanel.classList.remove("hidden");
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawRoad();
+      ctx.strokeStyle = "rgba(148, 163, 184, 0.6)";
+      ctx.lineWidth = 2;
+      for (let i = 1; i < laneCount; i++) {
+        const x = i * laneWidth;
+        ctx.setLineDash([16, 16]);
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+      const playerX = laneCenterX(playerLane) - playerWidth / 2;
+      ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
+      ctx.beginPath();
+      ctx.ellipse(laneCenterX(playerLane), groundY + 10, playerWidth / 1.6, 12, 0, 0, Math.PI * 2);
+      ctx.fill();
+      drawCar(playerX, playerY, playerWidth, playerHeight);
+      obstacles.forEach(o => {
+        const ox = laneCenterX(o.lane) - obstacleWidth / 2;
+        const oy = o.y;
+        const g = ctx.createLinearGradient(ox, oy, ox + obstacleWidth, oy + obstacleHeight);
+        g.addColorStop(0, "#4b5563"); g.addColorStop(1, "#111827");
+        ctx.fillStyle = g;
+        ctx.fillRect(ox, oy, obstacleWidth, obstacleHeight);
+        ctx.strokeStyle = "#9ca3af";
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(ox, oy, obstacleWidth, obstacleHeight);
+      });
+      coins.forEach(c => {
+        const cx = laneCenterX(c.lane);
+        const cy = c.y;
+        const coinGrad = ctx.createRadialGradient(cx - 4, cy - 4, 4, cx, cy, coinRadius);
+        coinGrad.addColorStop(0, "#facc15");
+        coinGrad.addColorStop(1, "#b45309");
+        ctx.fillStyle = coinGrad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, coinRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#fef3c7";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx, cy, coinRadius / 2, 0, Math.PI * 2);
+        ctx.strokeStyle = "#fef08a";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
+    }
+    function drawCar(x, y, w, h) {
+      ctx.save();
+      ctx.translate(x + w / 2, y + h / 2);
+      const bodyW = w * 0.7;
+      const bodyH = h;
+      const grd = ctx.createLinearGradient(-bodyW/2, -bodyH/2, bodyW/2, bodyH/2);
+      grd.addColorStop(0, "#22d3ee"); grd.addColorStop(0.5, "#6366f1"); grd.addColorStop(1, "#a855f7");
+      roundedRect(-bodyW/2, -bodyH/2, bodyW, bodyH, 14, grd, "#e5e7eb", 2);
+      const roofH = bodyH * 0.35;
+      const roofGrad = ctx.createLinearGradient(0, -bodyH/2, 0, -bodyH/2 + roofH);
+      roofGrad.addColorStop(0, "rgba(248, 250, 252, 0.9)");
+      roofGrad.addColorStop(1, "rgba(148, 163, 184, 0.5)");
+      roundedRect(-bodyW * 0.45, -bodyH/2 + 6, bodyW * 0.9, roofH, 12, roofGrad, "rgba(15,23,42,0.8)", 1.5);
+      const rearH = bodyH * 0.22;
+      const rearGrad = ctx.createLinearGradient(0, bodyH/2 - rearH - 6, 0, bodyH/2);
+      rearGrad.addColorStop(0, "rgba(148, 163, 184, 0.3)");
+      rearGrad.addColorStop(1, "rgba(15, 23, 42, 0.9)");
+      roundedRect(-bodyW * 0.35, bodyH/2 - rearH - 6, bodyW * 0.7, rearH, 10, rearGrad, "rgba(15,23,42,0.8)", 1);
+      // Wheels
+      const wheelW = bodyW * 0.28;
+      const wheelH = bodyH * 0.18;
+      ctx.fillStyle = "#020617"; ctx.strokeStyle = "#0f172a"; ctx.lineWidth = 3;
+      roundedRect(-bodyW/2 - wheelW*0.15, -bodyH*0.25 - wheelH/2, wheelW, wheelH, 8, "#020617", "#0f172a", 3);
+      roundedRect(bodyW/2 - wheelW*0.85, -bodyH*0.25 - wheelH/2, wheelW, wheelH, 8, "#020617", "#0f172a", 3);
+      roundedRect(-bodyW/2 - wheelW*0.15, bodyH*0.25 - wheelH/2, wheelW, wheelH, 8, "#020617", "#0f172a", 3);
+      roundedRect(bodyW/2 - wheelW*0.85, bodyH*0.25 - wheelH/2, wheelW, wheelH, 8, "#020617", "#0f172a", 3);
+      ctx.fillStyle = "#fef9c3";
+      roundedRect(-bodyW*0.25, -bodyH/2 - 4, bodyW*0.2, 10, 4, "#fef9c3", null, 0);
+      roundedRect(bodyW*0.05, -bodyH/2 - 4, bodyW*0.2, 10, 4, "#fef9c3", null, 0);
+      ctx.fillStyle = "#f97373";
+      roundedRect(-bodyW*0.25, bodyH/2 - 6, bodyW*0.2, 9, 4, "#f97373", null, 0);
+      roundedRect(bodyW*0.05, bodyH/2 - 6, bodyW*0.2, 9, 4, "#f97373", null, 0);
+      ctx.restore();
+    }
+    function roundedRect(x, y, w, h, r, fillStyle, strokeStyle, lineWidth) {
+      const radius = Math.min(r, w/2, h/2);
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + w - radius, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+      ctx.lineTo(x + w, y + h - radius);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+      ctx.lineTo(x + radius, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+      ctx.closePath();
+      if (fillStyle) { ctx.fillStyle = fillStyle; ctx.fill(); }
+      if (strokeStyle && lineWidth > 0) { ctx.strokeStyle = strokeStyle; ctx.lineWidth = lineWidth; ctx.stroke(); }
+    }
+    function drawRoad() {
+      ctx.save();
+      ctx.fillStyle = "#020617";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const glowGrad = ctx.createLinearGradient(0, 0, 0, canvas.height / 2);
+      glowGrad.addColorStop(0, "rgba(56, 189, 248, 0.3)");
+      glowGrad.addColorStop(1, "transparent");
+      ctx.fillStyle = glowGrad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height / 2);
+      ctx.beginPath();
+      ctx.moveTo(canvas.width * 0.15, 0);
+      ctx.lineTo(canvas.width * 0.85, 0);
+      ctx.lineTo(canvas.width * 0.75, canvas.height);
+      ctx.lineTo(canvas.width * 0.25, canvas.height);
+      ctx.closePath();
+      const roadGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      roadGrad.addColorStop(0, "#111827");
+      roadGrad.addColorStop(1, "#020617");
+      ctx.fillStyle = roadGrad;
+      ctx.fill();
+      const sideGrad = ctx.createLinearGradient(0, 0, canvas.width, 0);
+      sideGrad.addColorStop(0, "rgba(59, 130, 246, 0.4)");
+      sideGrad.addColorStop(0.5, "transparent");
+      sideGrad.addColorStop(1, "rgba(236, 72, 153, 0.4)");
+      ctx.fillStyle = sideGrad;
+      ctx.globalAlpha = 0.5;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+    function rectsOverlap(r1, r2) {
+      return !(r1.x > r2.x + r2.w ||
+               r1.x + r1.w < r2.x ||
+               r1.y > r2.y + r2.h ||
+               r1.y + r1.h < r2.y);
+    }
+    function circleRectOverlap(cx, cy, r, rect) {
+      const closestX = clamp(cx, rect.x, rect.x + rect.w);
+      const closestY = clamp(cy, rect.y, rect.y + rect.h);
+      const dx = cx - closestX;
+      const dy = cy - closestY;
+      return (dx * dx + dy * dy) <= r * r;
+    }
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+    restartBtn.addEventListener("click", resetGame);
+    startBtn.addEventListener("click", resetGame);
+    draw();
+    update();
+
+    // GESTURE CONTROL: Swipe left/right to change lane
+    // Uses index finger horizontal movement; triggers lane change if swipe is fast
+    let lastX = null, lastTime = 0;
+    let swipeCooldown = 350; // ms after swipe before allowing another
+    let gestureLocked = false;
+    let lastLane = 1;
+
+    async function startHandControl() {
+      if (window.tf && tf.setBackend) {
+        await tf.setBackend("webgl");
+        await tf.ready();
+      }
+      const video = document.getElementById('webcam');
+      const stream = await navigator.mediaDevices.getUserMedia({video: {width: 320, height: 240}});
+      video.srcObject = stream;
+      await video.play();
+      gestureTip.textContent = "Swipe left/right with your hand in webcam to change lanes";
+      const detector = await handPoseDetection.createDetector(
+        handPoseDetection.SupportedModels.MediaPipeHands,
+        { runtime: "mediapipe", modelType: "lite", maxHands: 1, solutionPath: "https://cdn.jsdelivr.net/npm/@mediapipe/hands" }
+      );
+      function getSwipeDirection(xNow, timeNow) {
+        if (lastX === null) {
+          lastX = xNow;
+          lastTime = timeNow;
+          return null;
+        }
+        // Compute speed
+        let dt = timeNow - lastTime;
+        let dx = xNow - lastX;
+        lastX = xNow; lastTime = timeNow;
+        // Only look at big swipes in short time
+        if (dt > 80 && dt < 400) {
+          if (dx > 0.26) return "right";
+          if (dx < -0.26) return "left";
+        }
+        return null;
+      }
+      async function gestureLoop() {
+        const hands = await detector.estimateHands(video, { flipHorizontal: true });
+        if (hands.length > 0 && running && !gameOver) {
+          const kp = hands[0].keypoints;
+          let xIndex = kp[8].x; // index fingertip, normalized (0=left, 1=right)
+          let now = performance.now();
+          let swipeDir = getSwipeDirection(xIndex, now);
+          if (!gestureLocked && swipeDir) {
+            if (swipeDir === "left" && playerLane > 0) {
+              playerLane--;
+              gestureTip.textContent = "Lane Left";
+            } else if (swipeDir === "right" && playerLane < laneCount - 1) {
+              playerLane++;
+              gestureTip.textContent = "Lane Right";
+            }
+            gestureLocked = true;
+            setTimeout(() => { gestureLocked = false; gestureTip.textContent = "Swipe left/right to change lanes"; }, swipeCooldown);
+          }
+        }
+        requestAnimationFrame(gestureLoop);
+      }
+      gestureLoop();
+    }
+    startHandControl();
+  </script>
+</body>
+</html>
